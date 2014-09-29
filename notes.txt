@@ -1,0 +1,11 @@
+/* Parsing
+ *   char *ptr = strtok(input," \n");
+ *   printf("strtok: %s\n",ptr);
+ * Prints first token from string
+ *   char * bar = strtok(NULL," \n");
+ *   printf("2: %s\n",bar);
+ * Assigns ptr to second token
+ *   ptr = strtok(NULL," \n");
+ *   printf("3: %s\n",ptr);
+ * Et cetera
+ */

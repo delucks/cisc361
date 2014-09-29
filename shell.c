@@ -10,18 +10,6 @@
 
 // woo a fucking shell
 
-/* Parsing
- *   char *ptr = strtok(input," \n");
- *   printf("strtok: %s\n",ptr);
- * Prints first token from string
- *   char * bar = strtok(NULL," \n");
- *   printf("2: %s\n",bar);
- * Assigns ptr to second token
- *   ptr = strtok(NULL," \n");
- *   printf("3: %s\n",ptr);
- * Et cetera
- */
-
 // Change this to disable debug printing information
 //#define DEBUG
 
@@ -33,6 +21,38 @@
 
 char PROMPT[] = "delucks > ";
 size_t MAXLINELEN = 255;
+
+int execute(char * argarray[],char * original)
+{
+	// Test for builtins
+	if (strcmp(argarray[0],"exit")==0)
+	{
+		exit(0);
+	}
+	else if (strcmp(argarray[0],"foo")==0)
+	{
+		printf("Bar! :D\n");
+	}
+	// If we didn't hit any builtins, try to execute it
+	else
+	{
+		DPRINT(("[::] Attempting to execute %s\n",argarray[0]));
+		int pid = fork();
+		if (pid == 0)
+		{
+			int rc = execvp(argarray[0], argarray);
+			DPRINT(("[::] Return code: %i\n",rc));
+			if (rc < 0)
+			{
+				printf("Invalid command entered: %s",original);
+			}
+		}
+		else
+		{
+			waitpid(pid,0,0);
+		}
+	}
+}
 
 int main(int argc,char** argv)
 {
@@ -48,30 +68,13 @@ int main(int argc,char** argv)
 		DPRINT(("[::] Parsing arguments.\n"));
 		char * arguments[MAXLINELEN];
 		int i = 0;
-		while (tok_curr != NULL) {
+		while (tok_curr != NULL)
+		{
 			arguments[i] = tok_curr;
 			DPRINT(("[::] Argument %i: %s\n",i,tok_curr));
 			tok_curr = strtok(NULL," \n");
 			i++;
 		}
-		int pid = fork();
-		if (pid == 0) {
-			int rc = execvp(arguments[0], arguments);
-			DPRINT(("[::] Return code: %i\n",rc));
-			if (rc < 0) {
-				printf("Invalid command entered: %s",original);
-			}
-		}
-		else {
-			waitpid(pid,0,0);
-		}
-		//tok_first = strtok(NULL," \n");
-		//if (tok_first != NULL) {
-		//	DPRINT(("2: %s\n",tok_first));
-		//}
-		//else {
-		//	DPRINT(("NULL!"));
-		//}
-		//rc = execvp(tok_first, arguments);
+		execute(arguments,original);
 	}
 }
