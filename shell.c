@@ -39,6 +39,7 @@ int execute(char * argarray[],char * original)
 	}
 	else if (strcmp(argarray[0],"foo")==0)
 	{
+		// Here she blows! An example builtin
 		printf("Bar! :D\n");
 	}
 	// If we didn't hit any builtins, try to execute it
@@ -64,11 +65,11 @@ int execute(char * argarray[],char * original)
 
 int main(int argc,char** argv)
 {
-	char input[MAXLINELEN];
 	while (1)
 	{
 		printf("%s",PROMPT);
 		// Read
+		char input[MAXLINELEN];
 		fgets(input,MAXLINELEN,stdin);
 		char * original = strdup(input);
 		DPRINT(("[::] You entered: %s\n",input));
