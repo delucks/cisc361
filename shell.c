@@ -8,9 +8,17 @@
 #include <errno.h>
 #include <signal.h>
 
-// woo a fucking shell
+/* 
+ * Jamie Luck
+ * jluck@udel.edu
+ *
+ * CISC361 - Operating Systems
+ * Project 1 - Shell
+ * Started 09/16/2014
+ * Finished ???
+ *
+ */
 
-// Change this to disable debug printing information
 //#define DEBUG
 
 #ifdef DEBUG
@@ -19,7 +27,7 @@
 # define DPRINT(x) do {} while(0)
 #endif
 
-char PROMPT[] = "delucks > ";
+char PROMPT[] = "dlksh% ";
 size_t MAXLINELEN = 255;
 
 int execute(char * argarray[],char * original)
