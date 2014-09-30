@@ -8,18 +8,28 @@
 #include <errno.h>
 #include <signal.h>
 
-/* 
- * Jamie Luck
+/* Jamie Luck
  * jluck@udel.edu
- *
+ * --------------
  * CISC361 - Operating Systems
  * Project 1 - Shell
  * Started 09/16/2014
  * Finished ???
- *
+ */
+
+/* section: TODO
+ * -------------
+ * 1 - Allow no whitespace around | > <
+ */
+
+/* section: definitions
+ * --------------------
+ * Generic type and global var declarations
  */
 
 //#define DEBUG
+#define MAXWORDS 100
+#define MAXLINELEN 255
 
 #ifdef DEBUG
 # define DPRINT(x) printf x
@@ -27,8 +37,32 @@
 # define DPRINT(x) do {} while(0)
 #endif
 
+#ifndef CMD_CHUNK
+/* struct: cmd_chunk
+ * -----------------
+ * Holds metadata information about each atomic chunk of commands
+ * between pipes. Handles I/O redirection with file descriptors.
+ * Is part of a linked list, starting with head_chunk in main()
+ * Traversing the linked list of cmd_chunks is the way to parse
+ * I/O redirection
+ */
+typedef struct cmd_chunk
+{
+	char * in_path;
+	char * out_path;
+	char * cmd_raw[MAXWORDS];
+	char * cmd_exec[MAXWORDS];
+	unsigned int bg;
+} cmd_chunk;
+#define CMD_CHUNK cmd_chunk
+#endif
+
 char PROMPT[] = "dlksh% ";
-size_t MAXLINELEN = 255;
+
+/* section: functions
+ * ------------------
+ * Heavy lifting.
+ */
 
 int execute(char * argarray[],char * original)
 {
@@ -63,6 +97,39 @@ int execute(char * argarray[],char * original)
 	}
 }
 
+int parse_chunk_io(struct cmd_chunk input)
+{
+	char * sanitized[MAXWORDS];
+	unsigned int iter = 0,san_iter = 0;
+	for (iter;input.cmd_raw[iter] != NULL;)
+	{
+		if (strcmp(input.cmd_raw[iter],">") == 0)
+		{
+			// We've got output redirection into a file
+			input.out_path = input.cmd_raw[iter+1];
+			iter = iter+2; //Iterate to skip past these items
+		}
+		else if (strcmp(input.cmd_raw[iter],"<") == 0)
+		{
+			// Input redirection from a file
+			input.in_path = input.cmd_raw[iter+1];
+			iter = iter+2; //Iterate to skip past these items
+		}
+		else
+		{
+			// Normal token, copy it to final array
+			sanitized[san_iter] = input.cmd_raw[iter];
+		}
+	}
+	// Copy resulting sanitized array into the struct
+	*input.cmd_exec = memcpy(input.cmd_exec,sanitized,sizeof(sanitized));
+}
+
+/* section: main
+ * -------------
+ * Core program logic
+ */
+
 int main(int argc,char** argv)
 {
 	while (1)
@@ -73,17 +140,31 @@ int main(int argc,char** argv)
 		fgets(input,MAXLINELEN,stdin);
 		char * original = strdup(input);
 		DPRINT(("[::] You entered: %s\n",input));
+		//TODO 1
 		char *tok_curr = strtok(input," \n");
-		DPRINT(("[::] Parsing arguments.\n"));
+		DPRINT(("[::] Parsing input string.\n"));
 		char * arguments[MAXLINELEN];
-		int i = 0;
+		unsigned int i = 0,chunkcount=1;
 		while (tok_curr != NULL)
 		{
 			arguments[i] = tok_curr;
+			if (strcmp(tok_curr,"|")==0)
+			{
+				chunkcount++;
+			}
 			DPRINT(("[::] Argument %i: %s\n",i,tok_curr));
 			tok_curr = strtok(NULL," \n");
 			i++;
 		}
-		execute(arguments,original);
+		//execute(arguments,original);
+		DPRINT(("[::] Chunking input string into execution blocks"));
+		struct cmd_chunk * chunks[chunkcount];
+		unsigned int j=0;
+		for (j;j<chunkcount;j++)
+		{
+			cmd_chunk chunks[j];
+			// Create cmd_raw and fill it
+		}
+		//printf("%u",chunkcount);
 	}
 }
