@@ -9,8 +9,7 @@
 #include <signal.h>
 
 /* Jamie Luck
- * jluck@udel.edu
- * --------------
+ * jluck@udel.edu * --------------
  * CISC361 - Operating Systems
  * Project 1 - Shell
  * Started 09/16/2014
@@ -97,6 +96,7 @@ int execute(char * argarray[],char * original)
 	}
 }
 
+// sets up i/o filepaths if we're doing redirection, sanitizes command of redirection before execution
 int parse_chunk_io(struct cmd_chunk input)
 {
 	char * sanitized[MAXWORDS];
@@ -160,10 +160,24 @@ int main(int argc,char** argv)
 		DPRINT(("[::] Chunking input string into execution blocks"));
 		struct cmd_chunk * chunks[chunkcount];
 		unsigned int j=0;
+		unsigned int inc = 0;
 		for (j;j<chunkcount;j++)
 		{
 			cmd_chunk chunks[j];
 			// Create cmd_raw and fill it
+			char * foo[MAXLINELEN];
+			while ((strcmp(arguments[inc],"|")!=0)||inc<i)
+			{
+				//Termination conditions- we hit a pipe or we've exceeded the length of the arguments array
+				memcpy(foo[inc],arguments[inc],sizeof(arguments[inc]));
+				inc++;
+			}
+			if (strcmp(arguments[inc],"|")==0)
+			{
+				inc++;
+			}
+			memcpy(chunks[j].cmd_raw,foo,sizeof(foo));
+			printf("%u",sizeof(foo));
 		}
 		//printf("%u",chunkcount);
 	}
