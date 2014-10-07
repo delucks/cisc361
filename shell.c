@@ -65,7 +65,7 @@ char PROMPT[] = "dlksh% ";
  * Heavy lifting.
  */
 
-int execute(struct cmd_chunk * chunk,char * original)
+int execute(struct cmd_chunk * chunk,char * original,int prev_out_fd)
 {
 	DPRINT(("[::] Attempting to execute %s\n",original));
 	// Test for builtins
@@ -83,27 +83,63 @@ int execute(struct cmd_chunk * chunk,char * original)
 	{
 		// Time to set up the real paths for I/O
 		printf("[exec] Setting up I/O paths\n");
+		unsigned int pipe_in_flag=0,pipe_out_flag=0;
+		int in_fd,out_fd,pipe_fd[2];
 		if (strcmp(chunk->in_path,"stdin")==0)
 		{
+			printf("Stdin redirected on pipe %u\n",prev_out_fd);
+			dup2(STDIN_FILENO,prev_out_fd);
+			pipe_in_flag = 1;
+			if (strcmp(chunk->out_path,"stdout")==0)
+			{
+				pipe(pipe_fd);
+				printf("Stdout redirected on pipe %u\n",pipe_fd[1]);
+				dup2(STDOUT_FILENO,pipe_fd[1]);
+				pipe_out_flag = 1;
+			}
 		}
 		else if (strcmp(chunk->out_path,"stdout")==0)
 		{
+			pipe(pipe_fd);
+			printf("Stdout redirected on pipe %u\n",pipe_fd[1]);
+			dup2(STDOUT_FILENO,pipe_fd[1]);
+			pipe_out_flag = 1;
 		}
-		printf("size: %u\n",sizeof(chunk->in_path));
-		//int pid = fork();
-		//if (pid == 0)
-		//{
-		//	int rc = execvp(chunk->cmd_exec[0], argarray);
-		//	DPRINT(("[::] Return code: %i\n",rc));
-		//	if (rc < 0)
-		//	{
-		//		printf("[ERROR] Invalid command entered: %s\n",original);
-		//	}
-		//}
-		//else
-		//{
-		//	waitpid(pid,0,0);
-		//}
+		if (pipe_in_flag==0 && strlen(chunk->in_path)>0)
+		{
+			//We have a path to set up
+			in_fd = open(chunk->in_path,O_RDONLY,0);
+			dup2(in_fd,STDIN_FILENO);
+			printf("File input on %u\n",in_fd);
+			//close(in_fd);
+		}
+		if (pipe_out_flag==0 && strlen(chunk->out_path)>0)
+		{
+			//We have a path to set up
+			out_fd = open(chunk->out_path,O_CREAT|O_RDWR,0744);
+			dup2(out_fd,STDOUT_FILENO);
+			// Doesn't print because of stdout duplication heheheheheheheheh
+			printf("File output on %u\n",out_fd);
+			close(out_fd);
+		}
+		printf("[exec] Done parsing I/O\n");
+		//printf("size: %u\n",sizeof(chunk->in_path));
+		int pid = fork();
+		if (pid == 0)
+		{
+			printf("Executing %s\n",chunk->cmd_exec[0]);
+			int rc = execvp(chunk->cmd_exec[0], chunk->cmd_exec);
+			printf("[::] Return code: %i\n",rc);
+			if (rc < 0)
+			{
+				printf("[ERROR] Invalid command entered: %s\n",original);
+			}
+		}
+		else
+		{
+			waitpid(pid,0,0);
+		}
+		return pipe_fd[1];
 	}
 }
 
@@ -114,21 +150,63 @@ void parse_pipe_io(struct cmd_chunk **input,int chunk_count)
 	unsigned int i=0;
 	for (i;i<chunk_count;i++)
 	{
+		if (input[i]->out_path == NULL)
+		{
+			input[i]->out_path = "";
+		}
+		if (input[i]->in_path == NULL)
+		{
+			input[i]->in_path = "";
+		}
 		if (i==0)
 		{
 			DPRINT(("Setting chunk 0 out_path to stdout\n"));
-			input[i]->out_path = "stdout";
+			if (strlen(input[i]->out_path)>0)
+			{
+				//Error
+				printf("[ERROR] Problem setting stdout of chunk %u\n",i);
+			}
+			else
+			{
+				input[i]->out_path = "stdout";
+			}
+			// We'll never have stdin as a pipe on the first chunk
 		}
 		else if (i==(chunk_count-1))
 		{
-			DPRINT(("Setting chunk %u in_path to stdin\n",i));
-			input[i]->in_path = "stdin";
+			DPRINT(("Setting chunk last %u in_path to stdin\n",i));
+			// We'll never be setting stdout to a pipe on the last one
+			if (strlen(input[i]->in_path)>0)
+			{
+				//Error
+				printf("[ERROR] Problem setting input of chunk %u with length %u\n",i,strlen(input[i]->in_path));
+			}
+			else
+			{
+				input[i]->in_path = "stdin";
+			}
 		}
 		else
 		{
 			DPRINT(("Setting chunk %u in and out paths\n",i));
-			input[i]->out_path = "stdout";
-			input[i]->in_path = "stdin";
+			if (strlen(input[i]->out_path)>0)
+			{
+				//Error
+				printf("[ERROR] Problem setting stdout of chunk %u\n",i);
+			}
+			else
+			{
+				input[i]->out_path = "stdout";
+			}
+			if (strlen(input[i]->in_path)>0)
+			{
+				//Error
+				printf("[ERROR] Problem setting input of chunk %u\n",i);
+			}
+			else
+			{
+				input[i]->in_path = "stdin";
+			}
 		}
 	}
 }
@@ -139,6 +217,8 @@ void parse_chunk_io(struct cmd_chunk *input)
 	DPRINT(("[::] parse_chunk_io running\n"));
 	char * sanitized[MAXWORDS];
 	unsigned int iter = 0,san_iter = 0;
+	input->out_path = NULL;
+	input->in_path = NULL;
 	for (iter;iter<input->cmd_raw_len;)
 	{
 		DPRINT(("%s\n",input->cmd_raw[iter]));
@@ -257,9 +337,10 @@ int main(int argc,char** argv)
 			parse_pipe_io(chunks,chunkcount);
 		}
 		k=0;
+		int prevoutfd = STDOUT_FILENO;
 		for (k;k<chunkcount;k++)
 		{
-			execute(chunks[k],original);
+			prevoutfd = execute(chunks[k],original,prevoutfd);
 		}
 	}
 }
