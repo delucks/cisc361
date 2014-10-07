@@ -26,7 +26,7 @@
  * Generic type and global var declarations
  */
 
-#define DEBUG
+//#define DEBUG
 #define MAXWORDS 100
 #define MAXLINELEN 255
 
@@ -52,6 +52,8 @@ typedef struct cmd_chunk
 	char * cmd_raw[MAXWORDS];
 	char * cmd_exec[MAXWORDS];
 	unsigned int bg;
+	int cmd_raw_len;
+	int cmd_exec_len;
 } cmd_chunk;
 #define CMD_CHUNK cmd_chunk
 #endif
@@ -97,32 +99,40 @@ int execute(char * argarray[],char * original)
 }
 
 // sets up i/o filepaths if we're doing redirection, sanitizes command of redirection before execution
-int parse_chunk_io(struct cmd_chunk input)
+int parse_chunk_io(struct cmd_chunk *input)
 {
+	DPRINT(("[::] parse_chunk_io running\n"));
 	char * sanitized[MAXWORDS];
 	unsigned int iter = 0,san_iter = 0;
-	for (iter;input.cmd_raw[iter] != NULL;)
+	for (iter;iter<input->cmd_raw_len;)
 	{
-		if (strcmp(input.cmd_raw[iter],">") == 0)
+		DPRINT(("%s\n",input->cmd_raw[iter]));
+		if (strcmp(input->cmd_raw[iter],">") == 0)
 		{
 			// We've got output redirection into a file
-			input.out_path = input.cmd_raw[iter+1];
+			DPRINT(("out_path set to %s\n",input->cmd_raw[iter+1]));
+			input->out_path = input->cmd_raw[iter+1];
 			iter = iter+2; //Iterate to skip past these items
 		}
-		else if (strcmp(input.cmd_raw[iter],"<") == 0)
+		else if (strcmp(input->cmd_raw[iter],"<") == 0)
 		{
 			// Input redirection from a file
-			input.in_path = input.cmd_raw[iter+1];
+			DPRINT(("in_path set to %s\n",input->cmd_raw[iter+1]));
+			input->in_path = input->cmd_raw[iter+1];
 			iter = iter+2; //Iterate to skip past these items
 		}
 		else
 		{
 			// Normal token, copy it to final array
-			sanitized[san_iter] = input.cmd_raw[iter];
+			sanitized[san_iter] = input->cmd_raw[iter];
+			san_iter++;
+			iter++;
 		}
 	}
 	// Copy resulting sanitized array into the struct
-	*input.cmd_exec = memcpy(input.cmd_exec,sanitized,sizeof(sanitized));
+	*input->cmd_exec = memcpy(input->cmd_exec,sanitized,sizeof(sanitized));
+	input->cmd_exec_len = iter;
+	DPRINT(("[::] Done parsing IO, sanitized len is %u\n",san_iter));
 }
 
 /* section: main
@@ -171,39 +181,41 @@ int main(int argc,char** argv)
 				if (strcmp(arguments[inc],"|")==0)
 				{
 					inc++;
-					perchunk=0;
+					//int chunks[j]->cmd_raw_len = perchunk;
 					DPRINT(("[scanner::rou%u] %s is in foo[1]\n",j,foo[1]));
 					// Store foo into chunks[j], then inrement j so we hit the for again
-					chunks[j] = (cmd_chunk*)malloc(sizeof(cmd_chunk)+2*sizeof(foo));
+					chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+2*sizeof(foo));
 					memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
-					printf("[scanner:rou%u] %s is in chunks[%u][1]\n",j,chunks[j]->cmd_raw[1],j);
+					chunks[j]->cmd_raw_len = perchunk;
+					perchunk=0;
+					DPRINT(("[scanner:rou%u] %s is in chunks[%u][1]\n",j,chunks[j]->cmd_raw[1],j));
 					j++;
 					// Reset foo to all null values
 					memset(&foo[0], 0, sizeof(foo));
 					continue;
 				}
-				printf("%s\n",arguments[inc]);
+				DPRINT(("%s\n",arguments[inc]));
 				foo[perchunk] = malloc(sizeof(arguments[inc]));
 				strncpy(foo[perchunk],arguments[inc],sizeof(arguments[inc])/sizeof(char));
 				inc++;
 				perchunk++;				
 			}
-			perchunk=0;
 			DPRINT(("[scanner::last] %s is in foo[1]\n",foo[1]));
 			// Store foo into the final element of chunks
-			chunks[j] = (cmd_chunk*)malloc(sizeof(cmd_chunk)+2*sizeof(foo));
+			chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+2*sizeof(foo));
 			memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
+			chunks[j]->cmd_raw_len = perchunk;
+			perchunk=0;
 			DPRINT(("[scanner::last] %s is in chunks[%u][1]\n",chunks[j]->cmd_raw[1],j));
-			j++;
 			// Reset foo to all null values
 			memset(&foo[0], 0, sizeof(foo));
+			j++;
 		}
 		unsigned int k=0;
 		for (k;k<chunkcount;k++)
 		{
 			DPRINT(("%s is %u bytes\n",chunks[k]->cmd_raw[0],sizeof(chunks[k]->cmd_raw)));
-			//parse_chunk_io(chunks[j]);
+			parse_chunk_io(chunks[k]);
 		}
-		//printf("%u",chunkcount);
 	}
 }
