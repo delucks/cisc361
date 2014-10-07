@@ -26,7 +26,7 @@
  * Generic type and global var declarations
  */
 
-//#define DEBUG
+#define DEBUG
 #define MAXWORDS 100
 #define MAXLINELEN 255
 
@@ -82,7 +82,7 @@ int execute(struct cmd_chunk * chunk,char * original,int prev_out_fd)
 	else
 	{
 		// Time to set up the real paths for I/O
-		printf("[exec] Setting up I/O paths\n");
+		printf("[exec] Setting up I/O paths for %s\n",chunk->cmd_exec);
 		unsigned int pipe_in_flag=0,pipe_out_flag=0;
 		int in_fd,out_fd,pipe_fd[2];
 		if (strcmp(chunk->in_path,"stdin")==0)
@@ -217,8 +217,8 @@ void parse_chunk_io(struct cmd_chunk *input)
 	DPRINT(("[::] parse_chunk_io running\n"));
 	char * sanitized[MAXWORDS];
 	unsigned int iter = 0,san_iter = 0;
-	input->out_path = NULL;
-	input->in_path = NULL;
+	input->out_path = "";
+	input->in_path = "";
 	for (iter;iter<input->cmd_raw_len;)
 	{
 		DPRINT(("%s\n",input->cmd_raw[iter]));
@@ -298,7 +298,7 @@ int main(int argc,char** argv)
 					//int chunks[j]->cmd_raw_len = perchunk;
 					DPRINT(("[scanner::rou%u] %s is in foo[1]\n",j,foo[1]));
 					// Store foo into chunks[j], then inrement j so we hit the for again
-					chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+2*sizeof(foo));
+					chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+(1*sizeof(foo)));
 					memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
 					chunks[j]->cmd_raw_len = perchunk;
 					perchunk=0;
@@ -316,7 +316,7 @@ int main(int argc,char** argv)
 			}
 			DPRINT(("[scanner::last] %s is in foo[1]\n",foo[1]));
 			// Store foo into the final element of chunks
-			chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+2*sizeof(foo));
+			chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+(1*sizeof(foo)));
 			memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
 			chunks[j]->cmd_raw_len = perchunk;
 			perchunk=0;
