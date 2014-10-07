@@ -245,9 +245,9 @@ void parse_chunk_io(struct cmd_chunk *input)
 		}
 	}
 	// Copy resulting sanitized array into the struct
-	*input->cmd_exec = memcpy(input->cmd_exec,sanitized,sizeof(sanitized));
+	memcpy(input->cmd_exec,sanitized,sizeof(sanitized));
 	input->cmd_exec_len = iter;
-	DPRINT(("[::] Done parsing IO, sanitized len is %u\n",san_iter));
+	DPRINT(("[::] Done parsing IO, sanitized len for %s is %u\n",input->cmd_exec[0],san_iter));
 }
 
 /* section: main
