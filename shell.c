@@ -26,7 +26,7 @@
  * Generic type and global var declarations
  */
 
-//#define DEBUG
+#define DEBUG
 #define MAXWORDS 100
 #define MAXLINELEN 255
 
@@ -86,7 +86,7 @@ int execute(char * argarray[],char * original)
 			DPRINT(("[::] Return code: %i\n",rc));
 			if (rc < 0)
 			{
-				printf("Invalid command entered: %s",original);
+				printf("[ERROR] Invalid command entered: %s\n",original);
 			}
 		}
 		else
@@ -157,27 +157,52 @@ int main(int argc,char** argv)
 			i++;
 		}
 		//execute(arguments,original);
-		DPRINT(("[::] Chunking input string into execution blocks"));
+		DPRINT(("[::] Chunking input string into execution blocks\n"));
 		struct cmd_chunk * chunks[chunkcount];
 		unsigned int j=0;
-		unsigned int inc = 0;
-		for (j;j<chunkcount;j++)
+		unsigned int perchunk=0, inc = 0;
+		// Create the chunks array, fill it with command blocks from the parser
+		for (j;j<chunkcount;)
 		{
-			cmd_chunk chunks[j];
-			// Create cmd_raw and fill it
 			char * foo[MAXLINELEN];
-			while ((strcmp(arguments[inc],"|")!=0)||inc<i)
+			while (inc<(i))
 			{
-				//Termination conditions- we hit a pipe or we've exceeded the length of the arguments array
-				memcpy(foo[inc],arguments[inc],sizeof(arguments[inc]));
+				// Execute only when we see a pipe or we're at the end of the input tokens
+				if (strcmp(arguments[inc],"|")==0)
+				{
+					inc++;
+					perchunk=0;
+					DPRINT(("[scanner::rou%u] %s is in foo[1]\n",j,foo[1]));
+					// Store foo into chunks[j], then inrement j so we hit the for again
+					chunks[j] = (cmd_chunk*)malloc(sizeof(cmd_chunk)+2*sizeof(foo));
+					memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
+					printf("[scanner:rou%u] %s is in chunks[%u][1]\n",j,chunks[j]->cmd_raw[1],j);
+					j++;
+					// Reset foo to all null values
+					memset(&foo[0], 0, sizeof(foo));
+					continue;
+				}
+				printf("%s\n",arguments[inc]);
+				foo[perchunk] = malloc(sizeof(arguments[inc]));
+				strncpy(foo[perchunk],arguments[inc],sizeof(arguments[inc])/sizeof(char));
 				inc++;
+				perchunk++;				
 			}
-			if (strcmp(arguments[inc],"|")==0)
-			{
-				inc++;
-			}
-			memcpy(chunks[j].cmd_raw,foo,sizeof(foo));
-			printf("%u",sizeof(foo));
+			perchunk=0;
+			DPRINT(("[scanner::last] %s is in foo[1]\n",foo[1]));
+			// Store foo into the final element of chunks
+			chunks[j] = (cmd_chunk*)malloc(sizeof(cmd_chunk)+2*sizeof(foo));
+			memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
+			DPRINT(("[scanner::last] %s is in chunks[%u][1]\n",chunks[j]->cmd_raw[1],j));
+			j++;
+			// Reset foo to all null values
+			memset(&foo[0], 0, sizeof(foo));
+		}
+		unsigned int k=0;
+		for (k;k<chunkcount;k++)
+		{
+			DPRINT(("%s is %u bytes\n",chunks[k]->cmd_raw[0],sizeof(chunks[k]->cmd_raw)));
+			//parse_chunk_io(chunks[j]);
 		}
 		//printf("%u",chunkcount);
 	}
