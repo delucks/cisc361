@@ -14,6 +14,7 @@
  * Project 1 - Shell
  * Started 09/16/2014
  * Finished ???
+ * Note to grader: I'll be finishing this soon. This is the first submission, which isn't complete. Thanks compilers.
  */
 
 /* section: TODO
@@ -26,7 +27,7 @@
  * Generic type and global var declarations
  */
 
-#define DEBUG
+//#define DEBUG
 #define MAXWORDS 100
 #define MAXLINELEN 255
 
@@ -65,15 +66,15 @@ char PROMPT[] = "dlksh% ";
  * Heavy lifting.
  */
 
-int execute(struct cmd_chunk * chunk,char * original,int prev_out_fd)
+int execute(struct cmd_chunk **chunks,char * original,int cmd_chunk_count)
 {
 	DPRINT(("[::] Attempting to execute %s\n",original));
 	// Test for builtins
-	if (strcmp(chunk->cmd_exec[0],"exit")==0)
+	if (strcmp(chunks[0]->cmd_exec[0],"exit")==0)
 	{
 		exit(0);
 	}
-	else if (strcmp(chunk->cmd_exec[0],"foo")==0)
+	else if (strcmp(chunks[0]->cmd_exec[0],"foo")==0)
 	{
 		// Here she blows! An example builtin
 		printf("Bar! :D\n");
@@ -81,55 +82,76 @@ int execute(struct cmd_chunk * chunk,char * original,int prev_out_fd)
 	// If we didn't hit any builtins, try to execute it
 	else
 	{
-		// Time to set up the real paths for I/O
-		printf("[exec] Setting up I/O paths for %s\n",chunk->cmd_exec);
-		unsigned int pipe_in_flag=0,pipe_out_flag=0;
-		int in_fd,out_fd,pipe_fd[2];
-		if (strcmp(chunk->in_path,"stdin")==0)
+		int pipe_flag=0,in_fd,out_fd,pipe_fd[2];
+		if (cmd_chunk_count > 1)
 		{
-			printf("Stdin redirected on pipe %u\n",prev_out_fd);
-			dup2(STDIN_FILENO,prev_out_fd);
-			pipe_in_flag = 1;
-			if (strcmp(chunk->out_path,"stdout")==0)
+			// Piped command
+			if (strlen(chunks[0]->in_path)>0)
 			{
-				pipe(pipe_fd);
-				printf("Stdout redirected on pipe %u\n",pipe_fd[1]);
-				dup2(STDOUT_FILENO,pipe_fd[1]);
-				pipe_out_flag = 1;
+				// We have an input path for the first chunk
+				in_fd = open(chunks[0]->in_path,O_RDONLY,0);
+				dup2(in_fd,STDIN_FILENO);
+				DPRINT(("File input on %u\n",in_fd));
+			}
+			if (strlen(chunks[1]->out_path)>0)
+			{
+				// We have an output path for the second chunk
+				out_fd = open(chunks[0]->out_path,O_CREAT|O_RDWR,0744);
+				dup2(out_fd,STDOUT_FILENO);
+				DPRINT(("File output on %u\n",out_fd));
+				close(out_fd);
+			}
+			pipe_flag=1;
+		}
+		else
+		{
+			// Single command
+			if (strlen(chunks[0]->in_path)>0)
+			{
+				in_fd = open(chunks[0]->in_path,O_RDONLY,0);
+				dup2(in_fd,STDIN_FILENO);
+				DPRINT(("File input on %u\n",in_fd));
+				close(in_fd);
+			}
+			if (strlen(chunks[0]->out_path)>0)
+			{
+				out_fd = open(chunks[0]->out_path,O_CREAT|O_RDWR,0744);
+				dup2(out_fd,STDOUT_FILENO);
+				DPRINT(("File output on %u\n",out_fd));
+				close(out_fd);
 			}
 		}
-		else if (strcmp(chunk->out_path,"stdout")==0)
+		DPRINT(("[exec] Done parsing I/O\n"));
+		//printf("size: %u\n",sizeof(chunks[0]->in_path));
+		int saved_stdout,saved_stdin;
+		if (pipe_flag==1)
 		{
+			// Set up pipe things
 			pipe(pipe_fd);
-			printf("Stdout redirected on pipe %u\n",pipe_fd[1]);
-			dup2(STDOUT_FILENO,pipe_fd[1]);
-			pipe_out_flag = 1;
+			saved_stdout = dup(STDOUT_FILENO);
+			saved_stdin = dup(STDIN_FILENO);
 		}
-		if (pipe_in_flag==0 && strlen(chunk->in_path)>0)
-		{
-			//We have a path to set up
-			in_fd = open(chunk->in_path,O_RDONLY,0);
-			dup2(in_fd,STDIN_FILENO);
-			printf("File input on %u\n",in_fd);
-			//close(in_fd);
-		}
-		if (pipe_out_flag==0 && strlen(chunk->out_path)>0)
-		{
-			//We have a path to set up
-			out_fd = open(chunk->out_path,O_CREAT|O_RDWR,0744);
-			dup2(out_fd,STDOUT_FILENO);
-			// Doesn't print because of stdout duplication heheheheheheheheh
-			printf("File output on %u\n",out_fd);
-			close(out_fd);
-		}
-		printf("[exec] Done parsing I/O\n");
-		//printf("size: %u\n",sizeof(chunk->in_path));
 		int pid = fork();
 		if (pid == 0)
 		{
-			printf("Executing %s\n",chunk->cmd_exec[0]);
-			int rc = execvp(chunk->cmd_exec[0], chunk->cmd_exec);
-			printf("[::] Return code: %i\n",rc);
+			// First child
+			DPRINT(("Executing %s\n",chunks[0]->cmd_exec[0]));
+			if (pipe_flag==1)
+			{
+				DPRINT(("Stdout redirected on pipe %u\n",pipe_fd[1]));
+				close(pipe_fd[0]);
+				dup2(pipe_fd[1],STDOUT_FILENO);
+				close(pipe_fd[1]);
+				DPRINT(("Stdout duplicated on pipe %u\n",pipe_fd[1]));
+			}
+			int rc = execvp(chunks[0]->cmd_exec[0], chunks[0]->cmd_exec);
+			if (pipe_flag==1)
+			{
+				// Restore stdout
+				//dup2(saved_stdout,STDOUT_FILENO);
+				close(pipe_fd[1]);
+			}
+			DPRINT(("[::] Return code: %i\n",rc));
 			if (rc < 0)
 			{
 				printf("[ERROR] Invalid command entered: %s\n",original);
@@ -137,10 +159,37 @@ int execute(struct cmd_chunk * chunk,char * original,int prev_out_fd)
 		}
 		else
 		{
+			if (pipe_flag==1)
+			{
+				DPRINT(("Setting pipe in on second exec\n"));
+				int pid2 = fork();
+				if (pid2==0)
+				{
+					DPRINT(("Stdin redirected on pipe %u\n",pipe_fd[0]));
+					close(pipe_fd[1]);
+					dup2(pipe_fd[0],STDIN_FILENO);
+					close(pipe_fd[0]);
+					DPRINT(("Stdin duplicated on pipe %u\n",pipe_fd[0]));
+					int rc = execvp(chunks[1]->cmd_exec[0], chunks[1]->cmd_exec);
+					DPRINT(("[::] Return code: %i\n",rc));
+					if (rc < 0)
+					{
+						printf("[ERROR] Invalid command entered: %s\n",original);
+					}
+				}
+				else
+				{
+					//waitpid(pid2,0,0);
+				}
+			}
 			waitpid(pid,0,0);
 		}
-		return pipe_fd[1];
+		close(in_fd);
+		close(out_fd);
+		close(pipe_fd[0]);
+		close(pipe_fd[1]);
 	}
+	return 0;
 }
 
 // changes i/o filepaths into standard input and output designators for pipes
@@ -160,31 +209,31 @@ void parse_pipe_io(struct cmd_chunk **input,int chunk_count)
 		}
 		if (i==0)
 		{
-			DPRINT(("Setting chunk 0 out_path to stdout\n"));
+			//DPRINT(("Setting chunk 0 out_path to stdout\n"));
+			// We'll never have stdin as a pipe on the first chunk
 			if (strlen(input[i]->out_path)>0)
 			{
-				//Error
+				// Can't do that! ERROR
 				printf("[ERROR] Problem setting stdout of chunk %u\n",i);
 			}
-			else
-			{
-				input[i]->out_path = "stdout";
-			}
-			// We'll never have stdin as a pipe on the first chunk
+			//else
+			//{
+			//	input[i]->out_path = "stdout";
+			//}
 		}
 		else if (i==(chunk_count-1))
 		{
-			DPRINT(("Setting chunk last %u in_path to stdin\n",i));
+			//DPRINT(("Setting chunk last %u in_path to stdin\n",i));
 			// We'll never be setting stdout to a pipe on the last one
 			if (strlen(input[i]->in_path)>0)
 			{
 				//Error
 				printf("[ERROR] Problem setting input of chunk %u with length %u\n",i,strlen(input[i]->in_path));
 			}
-			else
-			{
-				input[i]->in_path = "stdin";
-			}
+			//else
+			//{
+			//	input[i]->in_path = "stdin";
+			//}
 		}
 		else
 		{
@@ -196,7 +245,7 @@ void parse_pipe_io(struct cmd_chunk **input,int chunk_count)
 			}
 			else
 			{
-				input[i]->out_path = "stdout";
+				//input[i]->out_path = "stdout";
 			}
 			if (strlen(input[i]->in_path)>0)
 			{
@@ -205,7 +254,7 @@ void parse_pipe_io(struct cmd_chunk **input,int chunk_count)
 			}
 			else
 			{
-				input[i]->in_path = "stdin";
+				//input[i]->in_path = "stdin";
 			}
 		}
 	}
@@ -295,14 +344,13 @@ int main(int argc,char** argv)
 				if (strcmp(arguments[inc],"|")==0)
 				{
 					inc++;
-					//int chunks[j]->cmd_raw_len = perchunk;
-					DPRINT(("[scanner::rou%u] %s is in foo[1]\n",j,foo[1]));
+					DPRINT(("[scanner::round%u] %s is in foo[1]\n",j,foo[1]));
 					// Store foo into chunks[j], then inrement j so we hit the for again
 					chunks[j] = (struct cmd_chunk*)malloc(sizeof(struct cmd_chunk)+(1*sizeof(foo)));
 					memcpy(chunks[j]->cmd_raw,foo,sizeof(foo));
 					chunks[j]->cmd_raw_len = perchunk;
 					perchunk=0;
-					DPRINT(("[scanner:rou%u] %s is in chunks[%u][1]\n",j,chunks[j]->cmd_raw[1],j));
+					DPRINT(("[scanner::round%u] %s is in chunks[%u][1]\n",j,chunks[j]->cmd_raw[1],j));
 					j++;
 					// Reset foo to all null values
 					memset(&foo[0], 0, sizeof(foo));
@@ -336,11 +384,13 @@ int main(int argc,char** argv)
 		{
 			parse_pipe_io(chunks,chunkcount);
 		}
-		k=0;
-		int prevoutfd = STDOUT_FILENO;
-		for (k;k<chunkcount;k++)
-		{
-			prevoutfd = execute(chunks[k],original,prevoutfd);
-		}
+		//k=0;
+		//int prevoutfd = STDOUT_FILENO;
+		//for (k;k<chunkcount;k++)
+		//{
+		int temp = execute(chunks,original,chunkcount);
+		DPRINT(("Finished execute. Relooping\n"));
+		//	printf("Output on %u\n",prevoutfd);
+		//}
 	}
 }
